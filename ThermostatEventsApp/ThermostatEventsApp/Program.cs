@@ -13,14 +13,117 @@ namespace ThermostatEventsApp
     {
         static void Main(string[] args)
         {
-            HeatSensor heatSebsir = new HeatSensor(1, 2);
-            heatSebsir.RunHeatSensor();
+            Console.WriteLine("Press any key to start device...");
+            Console.ReadKey();
+
+            IDevice device = new Device();
+            device.RunDevice();
+
+
+            Console.ReadKey();
         }
 
     }
 
+    //the device to be monitored 
+    public class Device : IDevice
+    {
+        const double Warning_Level = 27;
+        const double Emergency_level = 75;
+
+        public double WarningTemperatureLevel => Warning_Level;
+
+        public double EmergencyTemperatureLevel => Emergency_level;
+
+        public void HandleEmergency()
+        {
+            Console.WriteLine();
+            Console.WriteLine("Sending out notifications to emergency services personal...");
+            ShutDownDevice();
+            Console.WriteLine();
+        }
+
+        private void ShutDownDevice() 
+        {
+            Console.WriteLine("Shutting down device");
+        }
+
+        public void RunDevice()
+        {
+            Console.WriteLine("Device is running...");
+            ICoolingMechanism coolingMechanism = new CoolingMechanism();
+            IHeatSenor heatSenor = new HeatSensor(Warning_Level, Emergency_level);
+            IThermostat thermostat = new Thermostat(this, heatSenor, coolingMechanism);
+
+            thermostat.RunThermostat();
+        }
+    }
+
+    //holds information, subscribe events with corresponding message alter
+    public class Thermostat : IThermostat
+    {
+        private ICoolingMechanism _coolingMechanism = null;
+        private IHeatSenor _heatSenor = null;
+        private IDevice _device = null;
+
+        public Thermostat(IDevice device, IHeatSenor heatSensor, ICoolingMechanism coolingMechanism) 
+        {
+            _coolingMechanism = coolingMechanism;
+            _heatSenor = heatSensor;
+            _device = device;
+        }
+
+        private void WireUpEventsToEventHandlers() 
+        {
+            _heatSenor.TemperatureReachesWarningLevelEventHandler += HeatSenor_TemperatureReachesWarningLevelEventHandler;
+            _heatSenor.TemperatureReachesEmergencyLevelEventHandler += HeatSenor_TemperatureReachesEmergencyLevelEventHandler;
+            _heatSenor.TemperatureFallsBelowWarningLevelEventHandler += HeatSenor_TemperatureFallsBelowWarningLevelEventHandler;
+        }
+
+        private void HeatSenor_TemperatureFallsBelowWarningLevelEventHandler(object sender, TemperatureEventArgs e)
+        {
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.WriteLine();
+            Console.WriteLine($"Information Alert!! Temperature falls below warning level(Warning level is between {_device.WarningTemperatureLevel} and {_device.EmergencyTemperatureLevel})");
+            _coolingMechanism.Off();
+            Console.ResetColor();
+        }
+
+        private void HeatSenor_TemperatureReachesEmergencyLevelEventHandler(object sender, TemperatureEventArgs e)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine();
+            Console.WriteLine($"Emergency Alert!! (Emergency level is {_device.EmergencyTemperatureLevel} and above)");
+            _device.HandleEmergency();
+            Console.ResetColor();
+        }
+
+        private void HeatSenor_TemperatureReachesWarningLevelEventHandler(object sender, TemperatureEventArgs e)
+        {
+            Console.ForegroundColor = ConsoleColor.DarkYellow;
+            Console.WriteLine();
+            Console.WriteLine($"Warning Alert!! (Warning level is between {_device.WarningTemperatureLevel} and {_device.EmergencyTemperatureLevel})");
+            _coolingMechanism.On();
+            Console.ResetColor();
+        }
+
+        public void RunThermostat()
+        {
+            Console.WriteLine("Thermostat is running...");
+            WireUpEventsToEventHandlers();
+            _heatSenor.RunHeatSensor();
+        }
+    }
+
+    public interface IThermostat 
+    {
+        void RunThermostat();
+    }
+
     public interface IDevice 
     {
+        double WarningTemperatureLevel { get; }
+        double EmergencyTemperatureLevel { get; }
         void RunDevice();
         void HandleEmergency();
     }
